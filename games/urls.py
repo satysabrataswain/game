@@ -11,6 +11,9 @@ urlpatterns = [
     path("friends/<int:request_id>/decline/", views.decline_friend_request, name="decline_friend_request"),
     path("friends/<int:request_id>/cancel/", views.cancel_friend_request, name="cancel_friend_request"),
 
+    path("invite-link/create/", views.create_invite_link, name="create_invite_link"),
+    path("invite-link/claim/", views.claim_invite_link, name="claim_invite_link"),
+
     path("friend-match/<uuid:match_id>/", views.get_friend_match, name="get_friend_match"),
     path("friend-match/<uuid:match_id>/move/", views.friend_match_move, name="friend_match_move"),
     path("friend-match/<uuid:match_id>/forfeit/", views.forfeit_friend_match, name="forfeit_friend_match"),

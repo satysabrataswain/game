@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import timedelta
 from functools import wraps
 
 from django.contrib.auth.models import User
@@ -7,10 +8,11 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import BingoMatch, FriendRequest
+from .models import BingoInviteLink, BingoMatch, FriendRequest
 from .services import bingo, multiplayer_bingo, tic_tac_toe
 
 
@@ -111,7 +113,7 @@ def _friend_public(match, user):
         else:
             winner = "OPPONENT"
             message = f"{opponent.username} won the Bingo match."
-    elif match.current_player_id == user.id:
+    elif match.current_player.pk == user.pk:
         winner = None
         message = "Your turn. Your call will appear green; your opponent's calls are red."
     else:
@@ -127,7 +129,7 @@ def _friend_public(match, user):
         }
 
     return {
-        "id": str(match.id),
+        "id": str(match.pk),
         "mode": "FRIEND",
         "game_type": "BINGO_FRIEND",
         "state": {
@@ -143,7 +145,7 @@ def _friend_public(match, user):
             "opponent_name": opponent.username,
             "my_turn": (
                 match.status == BingoMatch.STATUS_ACTIVE
-                and match.current_player_id == user.id
+                and match.current_player.pk == user.pk
             ),
             "status": match.status,
             "winner": winner,
@@ -240,12 +242,12 @@ def friend_state(request):
 
     match_data = []
     for match in matches:
-        opponent = match.player2 if match.player1_id == request.user.id else match.player1
+        opponent = match.player2 if match.player1.pk == request.user.pk else match.player1
         match_data.append(
             {
-                "id": str(match.id),
+                "id": str(match.pk),
                 "opponent_name": opponent.username,
-                "my_turn": match.current_player_id == request.user.id,
+                "my_turn": match.current_player.pk == request.user.pk,
                 "updated_at": match.updated_at.isoformat(),
             }
         )
@@ -253,11 +255,11 @@ def friend_state(request):
     return JsonResponse(
         {
             "incoming": [
-                {"id": item.id, "username": item.sender.username}
+                {"id": item.pk, "username": item.sender.username}
                 for item in incoming
             ],
             "outgoing": [
-                {"id": item.id, "username": item.receiver.username}
+                {"id": item.pk, "username": item.receiver.username}
                 for item in outgoing
             ],
             "active_matches": match_data,
@@ -280,10 +282,10 @@ def send_friend_request(request):
     friend = User.objects.filter(username__iexact=username).first()
     if friend is None:
         return JsonResponse({"error": "User not found."}, status=404)
-    if friend.id == request.user.id:
+    if friend.pk == request.user.pk:
         return JsonResponse({"error": "You cannot invite yourself."}, status=400)
 
-    pair = multiplayer_bingo.pair_key(request.user.id, friend.id)
+    pair = multiplayer_bingo.pair_key(request.user.pk, friend.pk)
     if BingoMatch.objects.filter(pair_key=pair, status=BingoMatch.STATUS_ACTIVE).exists():
         return JsonResponse(
             {"error": "You already have an active Bingo match with this player."},
@@ -295,7 +297,7 @@ def send_friend_request(request):
         status=FriendRequest.STATUS_PENDING,
     ).first()
     if existing:
-        if existing.sender_id == request.user.id:
+        if existing.sender.pk == request.user.pk:
             return JsonResponse({"error": "Invite already sent."}, status=409)
         return JsonResponse(
             {"error": f"{friend.username} already invited you. Accept the incoming invite."},
@@ -312,9 +314,117 @@ def send_friend_request(request):
         return JsonResponse({"error": "A pending invite already exists."}, status=409)
 
     return JsonResponse(
-        {"ok": True, "request": {"id": item.id, "username": friend.username}},
+        {"ok": True, "request": {"id": item.pk, "username": friend.username}},
         status=201,
     )
+
+
+@api_login_required
+@require_POST
+def create_invite_link(request):
+    """Create a one-time public Bingo invitation link valid for 24 hours."""
+    now = timezone.now()
+    BingoInviteLink.objects.filter(
+        creator=request.user,
+        status=BingoInviteLink.STATUS_ACTIVE,
+    ).update(status=BingoInviteLink.STATUS_CANCELLED)
+
+    invite = BingoInviteLink.objects.create(
+        creator=request.user,
+        expires_at=now + timedelta(hours=24),
+    )
+    invite_url = request.build_absolute_uri(f"/?invite={invite.token}")
+    return JsonResponse(
+        {
+            "ok": True,
+            "invite_url": invite_url,
+            "token": str(invite.token),
+            "expires_at": invite.expires_at.isoformat(),
+        },
+        status=201,
+    )
+
+
+@api_login_required
+@require_POST
+def claim_invite_link(request):
+    """Use a shareable link and immediately create/open a two-player Bingo match."""
+    try:
+        data = _json_body(request)
+    except ValueError as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    raw_token = str(data.get("token", "")).strip()
+    try:
+        token = uuid.UUID(raw_token)
+    except (TypeError, ValueError, AttributeError):
+        return JsonResponse({"error": "Invalid invitation link."}, status=400)
+
+    with transaction.atomic():
+        invite = BingoInviteLink.objects.select_for_update().select_related(
+            "creator", "joined_by", "match"
+        ).filter(token=token).first()
+
+        if invite is None:
+            return JsonResponse({"error": "Invitation link not found."}, status=404)
+
+        if invite.status == BingoInviteLink.STATUS_USED:
+            if invite.joined_by is not None and invite.joined_by.pk == request.user.pk and invite.match is not None:
+                match = _match_for_user(invite.match.pk, request.user)
+                if match is not None:
+                    return JsonResponse(_friend_public(match, request.user))
+            return JsonResponse({"error": "This invitation link has already been used."}, status=409)
+
+        if invite.status != BingoInviteLink.STATUS_ACTIVE:
+            return JsonResponse({"error": "This invitation link is no longer active."}, status=409)
+
+        if invite.expires_at <= timezone.now():
+            invite.status = BingoInviteLink.STATUS_CANCELLED
+            invite.save(update_fields=["status", "updated_at"])
+            return JsonResponse({"error": "This invitation link has expired."}, status=410)
+
+        if invite.creator.pk == request.user.pk:
+            return JsonResponse({"error": "Open this link from your friend's account."}, status=400)
+
+        pair = multiplayer_bingo.pair_key(invite.creator.pk, request.user.pk)
+        match = BingoMatch.objects.select_related(
+            "player1", "player2", "current_player"
+        ).filter(pair_key=pair, status=BingoMatch.STATUS_ACTIVE).first()
+
+        if match is None:
+            board1, board2 = bingo.make_two_boards()
+            try:
+                # Inner atomic block gives us a savepoint, so an unlikely
+                # uniqueness race does not break the outer invite transaction.
+                with transaction.atomic():
+                    match = BingoMatch.objects.create(
+                        pair_key=pair,
+                        player1=invite.creator,
+                        player2=request.user,
+                        player1_board=board1,
+                        player2_board=board2,
+                        calls=[],
+                        call_owners=[],
+                        current_player=invite.creator,
+                    )
+            except IntegrityError:
+                match = BingoMatch.objects.select_related(
+                    "player1", "player2", "current_player"
+                ).filter(pair_key=pair, status=BingoMatch.STATUS_ACTIVE).first()
+                if match is None:
+                    return JsonResponse({"error": "Could not create the match. Try again."}, status=409)
+
+        FriendRequest.objects.filter(
+            pair_key=pair,
+            status=FriendRequest.STATUS_PENDING,
+        ).update(status=FriendRequest.STATUS_ACCEPTED)
+
+        invite.status = BingoInviteLink.STATUS_USED
+        invite.joined_by = request.user
+        invite.match = match
+        invite.save(update_fields=["status", "joined_by", "match", "updated_at"])
+
+    return JsonResponse(_friend_public(match, request.user), status=201)
 
 
 @api_login_required
@@ -346,6 +456,7 @@ def decline_friend_request(request, request_id):
 @api_login_required
 @require_POST
 def accept_friend_request(request, request_id):
+    inviter_pk = None
     try:
         with transaction.atomic():
             item = FriendRequest.objects.select_for_update().select_related(
@@ -359,6 +470,7 @@ def accept_friend_request(request, request_id):
             if item.status != FriendRequest.STATUS_PENDING:
                 return JsonResponse({"error": "This invite is no longer pending."}, status=409)
 
+            inviter_pk = item.sender.pk
             pair = item.pair_key
             existing_match = BingoMatch.objects.filter(
                 pair_key=pair,
@@ -384,8 +496,11 @@ def accept_friend_request(request, request_id):
             item.save(update_fields=["status", "updated_at"])
     except IntegrityError:
         # Handles a rare double-accept/race without creating duplicate active games.
+        if inviter_pk is None:
+            return JsonResponse({"error": "Could not accept the invite. Try again."}, status=409)
+
         match = BingoMatch.objects.filter(
-            pair_key=multiplayer_bingo.pair_key(request.user.id, item.sender_id),
+            pair_key=multiplayer_bingo.pair_key(request.user.pk, inviter_pk),
             status=BingoMatch.STATUS_ACTIVE,
         ).first()
         if match is None:

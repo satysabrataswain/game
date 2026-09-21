@@ -28,8 +28,6 @@ class FriendRequest(models.Model):
         on_delete=models.CASCADE,
         related_name="received_game_invites",
     )
-    # Canonical unordered key, e.g. "4:19". This prevents duplicate/reverse
-    # pending invites for the same pair at the database level.
     pair_key = models.CharField(max_length=64, db_index=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -82,14 +80,8 @@ class BingoMatch(models.Model):
         related_name="bingo_matches_as_player2",
     )
 
-    # Each board is independently shuffled. The opponent board is never sent
-    # to the browser.
     player1_board = models.JSONField(default=list)
     player2_board = models.JSONField(default=list)
-
-    # Chronological called numbers and the owner of each call. A called number
-    # is shared for Bingo line calculation, but its owner controls its color:
-    # own call = green, opponent call = red.
     calls = models.JSONField(default=list)
     call_owners = models.JSONField(default=list)
 
@@ -120,3 +112,45 @@ class BingoMatch(models.Model):
 
     def __str__(self):
         return f"{self.player1} vs {self.player2} ({self.status})"
+
+
+class BingoInviteLink(models.Model):
+    STATUS_ACTIVE = "ACTIVE"
+    STATUS_USED = "USED"
+    STATUS_CANCELLED = "CANCELLED"
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_USED, "Used"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_bingo_invite_links",
+    )
+    joined_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="joined_bingo_invite_links",
+    )
+    match = models.ForeignKey(
+        BingoMatch,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invite_links",
+    )
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=STATUS_ACTIVE)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Invite by {self.creator} ({self.status})"

@@ -125,3 +125,20 @@ input:focus { border-color: #8c74ff; box-shadow: 0 0 0 3px rgba(124,92,255,.13);
   .bingo-cell { border-radius: 9px; }
   .bingo-score { grid-template-columns: 1fr; }
 }
+
+/* Shareable friend-invite UI */
+.global-notice { margin: 0 0 18px; padding: 12px 15px; border-radius: 14px; border: 1px solid rgba(37,199,122,.35); background: rgba(37,199,122,.12); color: #d9ffeb; font-weight: 700; }
+.global-notice.error { border-color: rgba(239,84,111,.4); background: rgba(239,84,111,.12); color: #ffdbe2; }
+.invite-auth-hint { margin-bottom: 16px; padding: 11px 12px; border-radius: 12px; border: 1px solid rgba(124,92,255,.4); background: rgba(124,92,255,.13); color: #e7e2ff; font-size: .9rem; line-height: 1.5; }
+.invite-link-box { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: rgba(124,92,255,.07); }
+.invite-link-box h3 { margin: 0 0 4px; }
+.invite-link-box .panel-help { margin: 0 0 12px; }
+.invite-link-row { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 8px; margin-top: 12px; }
+.invite-link-row input { margin: 0; min-width: 0; }
+.invite-divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 10px; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .09em; }
+.invite-divider::before, .invite-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.noscript-warning { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 99; padding: 12px; border-radius: 12px; background: #7a2537; color: white; text-align: center; font-weight: 800; }
+@media (max-width: 620px) {
+  .invite-link-row { grid-template-columns: 1fr 1fr; }
+  .invite-link-row input { grid-column: 1 / -1; }
+}

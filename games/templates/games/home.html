@@ -19,6 +19,8 @@
       </div>
     </header>
 
+    <div id="globalNotice" class="global-notice hidden" aria-live="polite"></div>
+
     <main>
       <section id="authSection" class="auth-layout">
         <div class="hero-copy">
@@ -29,6 +31,7 @@
         </div>
 
         <div class="card auth-card">
+          <div id="inviteAuthHint" class="invite-auth-hint hidden">Friend invite detected. Login or register and the match will open automatically.</div>
           <div class="auth-tabs">
             <button class="auth-tab active" data-mode="login" type="button">Login</button>
             <button class="auth-tab" data-mode="register" type="button">Register</button>
@@ -81,7 +84,22 @@
               <div><p class="eyebrow">2 PLAYER BINGO</p><h2>Invite a friend</h2></div>
               <button id="closeFriendPanelBtn" class="button ghost small" type="button">Close</button>
             </div>
-            <p class="panel-help">Enter the username of another registered GameHub account. On localhost, use two browser sessions (normal + Incognito) or two browsers.</p>
+
+            <div class="invite-link-box">
+              <div>
+                <h3>Share a join link</h3>
+                <p class="panel-help">Create a one-time link. Your friend opens it, logs in/registers, and joins automatically.</p>
+              </div>
+              <button id="createInviteLinkBtn" class="button primary" type="button">Create invite link</button>
+              <div id="inviteLinkRow" class="invite-link-row hidden">
+                <input id="inviteLinkInput" type="text" readonly aria-label="Invitation link">
+                <button id="copyInviteLinkBtn" class="button ghost" type="button">Copy link</button>
+                <button id="shareInviteLinkBtn" class="button ghost" type="button">Share</button>
+              </div>
+            </div>
+
+            <div class="invite-divider"><span>or invite by username</span></div>
+            <p class="panel-help">Enter the username of another registered GameHub account.</p>
             <form id="friendForm" class="friend-form">
               <input id="friendUsername" autocomplete="off" maxlength="150" placeholder="Friend username" required>
               <button id="sendFriendBtn" class="button primary" type="submit">Send invite</button>
@@ -128,7 +146,8 @@
     </main>
   </div>
 
+  <noscript><div class="noscript-warning">JavaScript is required to play GameHub.</div></noscript>
   <form class="hidden">{% csrf_token %}</form>
-  <script src="{% static 'games/app.js' %}"></script>
+  <script src="{% static 'games/app.js' %}" defer></script>
 </body>
 </html>
