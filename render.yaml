@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: gamehub
+    runtime: python
+    plan: free
+    buildCommand: ./build.sh
+    startCommand: python -m gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    envVars:
+      - key: GAMEHUB_SECRET_KEY
+        generateValue: true
+      - key: GAMEHUB_DEBUG
+        value: "0"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gamehub-db
+          property: connectionString
+
+databases:
+  - name: gamehub-db
+    plan: free

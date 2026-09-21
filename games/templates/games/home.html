@@ -1,0 +1,134 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameHub</title>
+  <link rel="stylesheet" href="{% static 'games/style.css' %}">
+</head>
+<body>
+  <div class="orb orb-one"></div>
+  <div class="orb orb-two"></div>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="GameHub home"><span>G</span> GameHub</a>
+      <div id="userArea" class="user-area hidden">
+        <span id="usernameLabel" class="user-chip"></span>
+        <button id="logoutBtn" class="button ghost small" type="button">Logout</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="authSection" class="auth-layout">
+        <div class="hero-copy">
+          <p class="eyebrow">DJANGO + JAVASCRIPT</p>
+          <h1>Play. Win. Repeat.</h1>
+          <p class="subtitle">Solo games plus real two-player Bingo invites backed by Django.</p>
+          <div class="feature-row"><span>⚡ Instant play</span><span>👥 Friend Bingo</span><span>🔐 Session login</span></div>
+        </div>
+
+        <div class="card auth-card">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-mode="login" type="button">Login</button>
+            <button class="auth-tab" data-mode="register" type="button">Register</button>
+          </div>
+          <h2 id="authTitle">Welcome back</h2>
+          <p id="authHint">Login to start playing.</p>
+          <form id="authForm">
+            <label>Username<input id="usernameInput" autocomplete="username" minlength="3" maxlength="150" required placeholder="yourname"></label>
+            <label>Password<input id="passwordInput" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••"></label>
+            <button class="button primary full" type="submit" id="authSubmit">Login</button>
+          </form>
+          <p id="authMessage" class="message" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section id="gameSection" class="hidden">
+        <div class="welcome-row">
+          <div>
+            <p class="eyebrow">GAME LOBBY</p>
+            <h1>Choose your game</h1>
+            <p class="subtitle">In two-player Bingo, your own calls are green and your opponent's calls are red on your board.</p>
+          </div>
+          <button id="backLobbyBtn" class="button ghost hidden" type="button">← Back to lobby</button>
+        </div>
+
+        <div id="lobby">
+          <div class="game-grid">
+            <article class="game-card tic-card">
+              <div class="game-icon">✕○</div>
+              <p class="pill">Classic</p>
+              <h2>Tic-Tac-Toe</h2>
+              <p>You are X. Challenge an unbeatable minimax computer.</p>
+              <button class="button primary" data-start="TIC_TAC_TOE" type="button">Play Tic-Tac-Toe</button>
+            </article>
+
+            <article class="game-card bingo-card">
+              <div class="game-icon">25</div>
+              <p class="pill">5 × 5</p>
+              <h2>Bingo</h2>
+              <p>Play against the CPU or invite a registered friend for turn-based Bingo.</p>
+              <div class="card-actions">
+                <button class="button primary" data-start="BINGO" type="button">Play vs CPU</button>
+                <button id="addFriendBtn" class="button ghost" type="button">＋ Add Friend</button>
+              </div>
+            </article>
+          </div>
+
+          <section id="friendPanel" class="friend-panel hidden">
+            <div class="friend-panel-head">
+              <div><p class="eyebrow">2 PLAYER BINGO</p><h2>Invite a friend</h2></div>
+              <button id="closeFriendPanelBtn" class="button ghost small" type="button">Close</button>
+            </div>
+            <p class="panel-help">Enter the username of another registered GameHub account. On localhost, use two browser sessions (normal + Incognito) or two browsers.</p>
+            <form id="friendForm" class="friend-form">
+              <input id="friendUsername" autocomplete="off" maxlength="150" placeholder="Friend username" required>
+              <button id="sendFriendBtn" class="button primary" type="submit">Send invite</button>
+            </form>
+            <p id="friendMessage" class="friend-message" aria-live="polite"></p>
+            <div class="friend-columns">
+              <div class="friend-box"><h3>Incoming</h3><div id="incomingRequests" class="friend-list"></div></div>
+              <div class="friend-box"><h3>Sent</h3><div id="outgoingRequests" class="friend-list"></div></div>
+              <div class="friend-box"><h3>Active matches</h3><div id="activeMatches" class="friend-list"></div></div>
+            </div>
+          </section>
+        </div>
+
+        <section id="playArea" class="play-area hidden">
+          <div class="play-header">
+            <div><p id="gameTypeLabel" class="eyebrow"></p><h2 id="gameTitle"></h2></div>
+            <div class="play-actions">
+              <button id="forfeitMatchBtn" class="button danger hidden" type="button">Forfeit match</button>
+              <button id="newGameBtn" class="button ghost" type="button">New game</button>
+            </div>
+          </div>
+          <p id="gameMessage" class="status-banner" aria-live="polite"></p>
+
+          <div id="ticArea" class="hidden">
+            <div id="ticBoard" class="tic-board" aria-label="Tic Tac Toe board"></div>
+            <div class="legend"><span><b class="x-mark">X</b> You</span><span><b class="o-mark">O</b> Computer</span></div>
+          </div>
+
+          <div id="bingoArea" class="hidden">
+            <div class="bingo-legend">
+              <span><i class="legend-dot own"></i>Your call</span>
+              <span><i class="legend-dot opponent"></i>Opponent call</span>
+              <span><i class="legend-ring"></i>Completed line</span>
+            </div>
+            <div class="bingo-score">
+              <div><span>You</span><strong id="userLines">0 / 5</strong></div>
+              <div><span id="opponentLabel">Opponent</span><strong id="opponentLines">0 / 5</strong></div>
+            </div>
+            <div id="bingoBoard" class="bingo-board"></div>
+            <p id="bingoCalls" class="calls"></p>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <form class="hidden">{% csrf_token %}</form>
+  <script src="{% static 'games/app.js' %}"></script>
+</body>
+</html>
